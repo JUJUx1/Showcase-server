@@ -1,118 +1,519 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Game Universe</title>
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ARCADE · Game Showcase</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
 <style>
-*{margin:0;padding:0;box-sizing:border-box;}
+  /* ── Variables ─────────────────────────────────────────────────────── */
+  :root {
+    --bg:        #050508;
+    --surface:   #0c0c14;
+    --surface2:  #12121e;
+    --border:    #1e1e32;
+    --cyan:      #00ffe1;
+    --magenta:   #ff2d78;
+    --yellow:    #ffe53d;
+    --text:      #e2e2f0;
+    --muted:     #5a5a7a;
+    --glow-c:    0 0 20px rgba(0,255,225,0.4);
+    --glow-m:    0 0 20px rgba(255,45,120,0.4);
+    --font-head: 'Orbitron', monospace;
+    --font-body: 'Space Mono', monospace;
+    --radius:    4px;
+    --transition: 0.2s ease;
+  }
 
-body{
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;
-  background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
-  color:white;
-  min-height:100vh;
-}
+  /* ── Reset ─────────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
 
-header{
-  padding:20px;
-  text-align:center;
-  font-size:22px;
-  font-weight:bold;
-}
+  /* ── Noise overlay ──────────────────────────────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    opacity: 0.4;
+  }
 
-.container{
-  display:grid;
-  grid-template-columns:1fr;
-  gap:18px;
-  padding:15px;
-}
+  /* ── Scanlines ──────────────────────────────────────────────────────── */
+  body::after {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 2px,
+      rgba(0,0,0,0.07) 2px,
+      rgba(0,0,0,0.07) 4px
+    );
+  }
 
-@media(min-width:600px){
-  .container{ grid-template-columns:repeat(2,1fr); }
-}
+  /* ── Layout ─────────────────────────────────────────────────────────── */
+  .wrap { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 0 20px; }
 
-@media(min-width:900px){
-  .container{ grid-template-columns:repeat(3,1fr); }
-}
+  /* ── Header ─────────────────────────────────────────────────────────── */
+  header {
+    padding: 48px 0 32px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 48px;
+    position: relative;
+  }
+  .header-glow {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 600px; height: 200px;
+    background: radial-gradient(ellipse, rgba(0,255,225,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .site-title {
+    font-family: var(--font-head);
+    font-size: clamp(2rem, 6vw, 4rem);
+    font-weight: 900;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, var(--cyan) 0%, var(--magenta) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 30px rgba(0,255,225,0.3));
+    animation: flicker 8s infinite;
+  }
+  .site-sub {
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-top: 8px;
+  }
 
-.card{
-  background:#111;
-  border-radius:18px;
-  overflow:hidden;
-  box-shadow:0 10px 30px rgba(0,0,0,0.6);
-}
+  /* ── Live badge ──────────────────────────────────────────────────────── */
+  .live-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--cyan); margin-top: 20px;
+    opacity: 0; transition: opacity 0.5s;
+  }
+  .live-badge.on { opacity: 1; }
+  .live-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--cyan); box-shadow: var(--glow-c);
+    animation: pulse 2s infinite;
+  }
 
-.card img{
-  width:100%;
-  height:180px;
-  object-fit:cover;
-}
+  /* ── Toolbar ─────────────────────────────────────────────────────────── */
+  .toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 32px; gap: 16px; flex-wrap: wrap;
+  }
+  .count { font-size: 12px; color: var(--muted); letter-spacing: 0.1em; }
+  .count span { color: var(--cyan); font-weight: 700; }
+  .search-wrap {
+    position: relative; flex: 1; max-width: 360px;
+  }
+  .search-wrap::before {
+    content: '⌕';
+    position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--muted); font-size: 16px; pointer-events: none;
+  }
+  #search {
+    width: 100%; padding: 10px 14px 10px 38px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text);
+    font-family: var(--font-body); font-size: 13px;
+    outline: none; transition: border-color var(--transition), box-shadow var(--transition);
+  }
+  #search:focus {
+    border-color: var(--cyan);
+    box-shadow: 0 0 0 2px rgba(0,255,225,0.12), var(--glow-c);
+  }
+  #search::placeholder { color: var(--muted); }
 
-.card-content{
-  padding:15px;
-}
+  /* ── Grid ────────────────────────────────────────────────────────────── */
+  #grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    margin-bottom: 80px;
+  }
+  @media (min-width: 640px)  { #grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 1024px) { #grid { grid-template-columns: repeat(3, 1fr); } }
 
-.card h3{
-  margin-bottom:8px;
-}
+  /* ── Card ────────────────────────────────────────────────────────────── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    cursor: pointer;
+    transition: transform var(--transition), border-color var(--transition), box-shadow var(--transition);
+    animation: cardIn 0.4s ease both;
+    position: relative;
+  }
+  .card:hover {
+    transform: translateY(-4px);
+    border-color: var(--cyan);
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6), var(--glow-c);
+  }
+  .card:active { transform: scale(0.97); }
 
-.card p{
-  font-size:14px;
-  opacity:0.8;
-  margin-bottom:12px;
-}
+  /* corner accent */
+  .card::before {
+    content: '';
+    position: absolute; top: 0; right: 0;
+    border-style: solid;
+    border-width: 0 28px 28px 0;
+    border-color: transparent var(--magenta) transparent transparent;
+    opacity: 0; transition: opacity var(--transition);
+  }
+  .card:hover::before { opacity: 1; }
 
-.card a{
-  display:block;
-  text-align:center;
-  padding:10px;
-  border-radius:10px;
-  text-decoration:none;
-  background:cyan;
-  color:black;
-  font-weight:bold;
-}
+  .card-thumb {
+    width: 100%; aspect-ratio: 16/9;
+    background: var(--surface2);
+    overflow: hidden; position: relative;
+  }
+  .card-thumb img {
+    width: 100%; height: 100%; object-fit: cover;
+    display: block;
+    transition: transform 0.4s ease;
+    opacity: 0; transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  .card-thumb img.loaded { opacity: 1; }
+  .card:hover .card-thumb img { transform: scale(1.05); }
+
+  .card-thumb-placeholder {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-head); font-size: 32px;
+    color: var(--border);
+  }
+
+  .card-body { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+  .card-title {
+    font-family: var(--font-head); font-size: 13px;
+    font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .card-desc {
+    color: var(--muted); font-size: 12px; line-height: 1.7;
+    flex: 1;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+  .card-date { font-size: 11px; color: var(--border); letter-spacing: 0.05em; }
+  .play-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 18px;
+    background: transparent;
+    border: 1px solid var(--cyan);
+    border-radius: var(--radius);
+    color: var(--cyan);
+    font-family: var(--font-head); font-size: 11px;
+    font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase;
+    text-decoration: none;
+    transition: background var(--transition), box-shadow var(--transition), color var(--transition);
+  }
+  .play-btn:hover {
+    background: var(--cyan);
+    color: var(--bg);
+    box-shadow: var(--glow-c);
+  }
+  .play-btn::before { content: '▶'; font-size: 9px; }
+
+  /* ── Empty / loading ─────────────────────────────────────────────────── */
+  .empty {
+    grid-column: 1/-1;
+    text-align: center; padding: 80px 20px;
+    color: var(--muted);
+  }
+  .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.3; display: block; }
+  .empty-text { font-family: var(--font-head); font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+  .spinner {
+    width: 40px; height: 40px;
+    border: 2px solid var(--border);
+    border-top-color: var(--cyan);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 0 auto 16px;
+  }
+
+  /* ── Footer ──────────────────────────────────────────────────────────── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 24px 0;
+    text-align: center;
+    color: var(--muted); font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase;
+  }
+  footer a { color: var(--cyan); text-decoration: none; }
+
+  /* ── Toast ───────────────────────────────────────────────────────────── */
+  #toast {
+    position: fixed; bottom: 32px; right: 32px; z-index: 999;
+    padding: 12px 20px;
+    background: var(--surface2); border: 1px solid var(--cyan);
+    border-radius: var(--radius);
+    font-size: 12px; letter-spacing: 0.1em;
+    color: var(--cyan);
+    box-shadow: var(--glow-c);
+    transform: translateY(20px); opacity: 0;
+    transition: all 0.3s ease;
+    pointer-events: none;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+
+  /* ── Animations ──────────────────────────────────────────────────────── */
+  @keyframes flicker {
+    0%,100% { opacity:1 } 92%,94% { opacity:0.85 } 96% { opacity:1 }
+  }
+  @keyframes pulse {
+    0%,100% { transform:scale(1); opacity:1 }
+    50% { transform:scale(1.5); opacity:0.6 }
+  }
+  @keyframes spin { to { transform:rotate(360deg) } }
+  @keyframes cardIn {
+    from { opacity:0; transform:translateY(16px) }
+    to   { opacity:1; transform:translateY(0) }
+  }
+  @keyframes highlightCard {
+    0%   { border-color: var(--yellow); box-shadow: 0 0 30px rgba(255,229,61,0.4); }
+    100% { border-color: var(--border); box-shadow: none; }
+  }
 </style>
 </head>
-
 <body>
 
-<header>🎮 My GitHub Games</header>
-<div class="container" id="games"></div>
+<div class="wrap">
+  <!-- Header -->
+  <header>
+    <div class="header-glow"></div>
+    <div class="site-title">ARCADE</div>
+    <div class="site-sub">Game Showcase Platform</div>
+    <div class="live-badge" id="liveBadge">
+      <div class="live-dot"></div>
+      <span>Live</span>
+    </div>
+  </header>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="count">Showing <span id="countVal">0</span> game(s)</div>
+    <div class="search-wrap">
+      <input id="search" type="text" placeholder="Search games..." autocomplete="off" />
+    </div>
+  </div>
+
+  <!-- Grid -->
+  <div id="grid">
+    <div class="empty">
+      <div class="spinner"></div>
+      <div class="empty-text">Loading Games…</div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <span>ARCADE SHOWCASE</span> &nbsp;·&nbsp;
+    <a href="admin.html">Admin Panel</a>
+  </footer>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
 
 <script>
-const API = "https://showcase-server-3axe.onrender.com";
+// ── Config ────────────────────────────────────────────────────────────────
+// Replace with your deployed backend URL
+const API = (window.ARCADE_API || 'https://showcase-server-3axe.onrender.com');
+const WS  = API.replace(/^http/, 'ws');
 
-function renderGames(data){
-  const container = document.getElementById("games");
-  container.innerHTML = "";
+// ── State ─────────────────────────────────────────────────────────────────
+let allGames = [];
+let query    = '';
 
-  data.slice().reverse().forEach(game=>{
-    container.innerHTML += `
-      <div class="card">
-        <img src="${game.image}">
-        <div class="card-content">
-          <h3>${game.title}</h3>
-          <p>${game.description}</p>
-          <a href="${game.link}" target="_blank">Play Now</a>
-        </div>
-      </div>
-    `;
+// ── DOM ───────────────────────────────────────────────────────────────────
+const grid      = document.getElementById('grid');
+const countVal  = document.getElementById('countVal');
+const search    = document.getElementById('search');
+const liveBadge = document.getElementById('liveBadge');
+const toast     = document.getElementById('toast');
+
+// ── Fetch games ───────────────────────────────────────────────────────────
+async function fetchGames() {
+  try {
+    const r  = await fetch(`${API}/games`);
+    allGames = await r.json();
+    render();
+  } catch {
+    grid.innerHTML = `<div class="empty">
+      <span class="empty-icon">⚠</span>
+      <div class="empty-text">Could not connect to server</div>
+    </div>`;
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function render() {
+  const q = query.toLowerCase().trim();
+  const filtered = q
+    ? allGames.filter(g =>
+        g.title.toLowerCase().includes(q) ||
+        g.description.toLowerCase().includes(q)
+      )
+    : allGames;
+
+  countVal.textContent = filtered.length;
+
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="empty">
+      <span class="empty-icon">◌</span>
+      <div class="empty-text">${q ? 'No matches found' : 'No games yet'}</div>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = filtered.map((g, i) => buildCard(g, i)).join('');
+
+  // Lazy-load images
+  grid.querySelectorAll('.card-thumb img').forEach(img => {
+    const io = new IntersectionObserver((entries, obs) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const el = e.target;
+          el.src = el.dataset.src;
+          el.onload = () => el.classList.add('loaded');
+          el.onerror = () => el.closest('.card-thumb').querySelector('.card-thumb-placeholder').style.display = 'flex';
+          obs.disconnect();
+        }
+      });
+    }, { rootMargin: '200px' });
+    io.observe(img);
   });
 }
 
-fetch(API+"/games")
-.then(res=>res.json())
-.then(data=>renderGames(data));
+function buildCard(g, i) {
+  const date = g.createdAt
+    ? new Date(g.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+    : '';
+  const imgHtml = g.image
+    ? `<img data-src="${escHtml(g.image)}" alt="${escHtml(g.title)}" loading="lazy" />`
+    : '';
+  const placeholder = g.image ? '' : `<div class="card-thumb-placeholder">◈</div>`;
 
-const socket = io(API);
-socket.on("update", data=>{
-  renderGames(data);
+  return `
+    <article class="card" id="card-${escHtml(g.id)}" style="animation-delay:${i * 0.05}s">
+      <div class="card-thumb">
+        ${imgHtml}
+        ${placeholder}
+      </div>
+      <div class="card-body">
+        <div class="card-title">${escHtml(g.title)}</div>
+        <div class="card-desc">${escHtml(g.description)}</div>
+        <div class="card-footer">
+          <span class="card-date">${date}</span>
+          <a class="play-btn" href="${escHtml(g.link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Play</a>
+        </div>
+      </div>
+    </article>`;
+}
+
+function escHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ── Search ────────────────────────────────────────────────────────────────
+search.addEventListener('input', () => {
+  query = search.value;
+  render();
 });
-</script>
 
+// ── WebSocket ─────────────────────────────────────────────────────────────
+function connectWS() {
+  let ws, retryDelay = 1500;
+
+  function connect() {
+    try { ws = new WebSocket(WS); } catch { return setTimeout(connect, retryDelay); }
+
+    ws.onopen = () => {
+      liveBadge.classList.add('on');
+      retryDelay = 1500;
+    };
+
+    ws.onmessage = ({ data }) => {
+      try {
+        const { type, payload } = JSON.parse(data);
+        handleWS(type, payload);
+      } catch {}
+    };
+
+    ws.onclose = () => {
+      liveBadge.classList.remove('on');
+      setTimeout(connect, retryDelay = Math.min(retryDelay * 1.5, 10000));
+    };
+  }
+
+  connect();
+}
+
+function handleWS(type, payload) {
+  if (type === 'init') {
+    allGames = payload;
+    render();
+    return;
+  }
+  if (type === 'add') {
+    allGames.unshift(payload);
+    render();
+    flashCard(payload.id, 'add');
+    showToast(`New game added: ${payload.title}`);
+  }
+  if (type === 'edit') {
+    const idx = allGames.findIndex(g => g.id === payload.id);
+    if (idx > -1) allGames[idx] = payload;
+    render();
+    flashCard(payload.id, 'edit');
+  }
+  if (type === 'delete') {
+    allGames = allGames.filter(g => g.id !== payload.id);
+    render();
+    showToast('A game was removed.');
+  }
+}
+
+function flashCard(id) {
+  const el = document.getElementById(`card-${id}`);
+  if (el) {
+    el.style.animation = 'none';
+    el.offsetHeight; // reflow
+    el.style.animation = 'highlightCard 1.5s ease forwards';
+  }
+}
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3500);
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+fetchGames();
+connectWS();
+</script>
 </body>
 </html>
